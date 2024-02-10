@@ -1,0 +1,78 @@
+#include <iostream>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include "../owl.h"
+
+using namespace std;
+using namespace cv;
+
+int main()
+{
+    robotOwl owl(1500, 1475, 1520, 1525, 1520); // Initialize with calibration values
+
+    namedWindow("left");
+    namedWindow("Color Target");
+
+    // HSV range for tracking
+    int HueLower = 34, SatLower = 42, ValLower = 100;
+    int HueUpper = 77, SatUpper = 200, ValUpper = 185;
+
+    createTrackbar("Hue Lower", "left", &HueLower, 179);
+    createTrackbar("Sat Lower", "left", &SatLower, 255);
+    createTrackbar("Val Lower", "left", &ValLower, 255);
+    createTrackbar("Hue Upper", "left", &HueUpper, 179);
+    createTrackbar("Sat Upper", "left", &SatUpper, 255);
+    createTrackbar("Val Upper", "left", &ValUpper, 255);
+
+    int headMoveThreshold = 100; // Threshold for head movement
+    int eyeMoveThreshold = 20;   // Threshold for eye movement
+    float proportionalGainNeck = 0.1; // Adjust based on your setup
+    float proportionalGainEye = 0.05; // Adjust based on your setup
+
+    while (true)
+    {
+        Mat left, right;
+        owl.getCameraFrames(left, right);
+
+        Mat left_hsv;
+        cvtColor(left, left_hsv, COLOR_BGR2HSV);
+
+        Mat frame_filtered;
+        inRange(left_hsv, Scalar(HueLower, SatLower, ValLower), Scalar(HueUpper, SatUpper, ValUpper), frame_filtered);
+
+        Moments m = moments(frame_filtered, true);
+        Point center(left.cols / 2, left.rows / 2);
+        Point p;
+
+        if (m.m00 != 0)
+        {
+            p = Point(m.m10 / m.m00, m.m01 / m.m00);
+            circle(left, p, 5, Scalar(0, 0, 255), -1);
+
+            int errorX = p.x - center.x;
+            int errorY = p.y - center.y;
+            int errorMagnitude = sqrt(errorX * errorX + errorY * errorY);
+
+            if (errorMagnitude > headMoveThreshold) {
+                // Coarse adjustment with head movement
+                int neckAdjustment = errorX * proportionalGainNeck;
+                owl.setServoRelativePositions(0, 0, 0, 0, neckAdjustment);
+            } else if (errorMagnitude <= headMoveThreshold && errorMagnitude > eyeMoveThreshold) {
+                // Fine adjustment with eye movement
+                int eyeXAdjustment = errorX * proportionalGainEye;
+                int eyeYAdjustment = errorY * proportionalGainEye;
+                owl.setServoRelativePositions(eyeXAdjustment, eyeYAdjustment, eyeXAdjustment, eyeYAdjustment, 0);
+            }
+        }
+
+        imshow("left", left);
+        imshow("Color Target", frame_filtered);
+
+        if (waitKey(10) == 27) // ESC key to exit
+            break;
+    }
+
+    destroyAllWindows();
+    return 0;
+}
