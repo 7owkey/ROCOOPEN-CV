@@ -1,0 +1,66 @@
+#include <iostream>
+#include <fstream>
+#include <sys/types.h>
+#include <opencv2/opencv.hpp>
+#include "../owl.h"
+
+using namespace std;
+using namespace cv;
+
+string detectColor(float h, float s, float v) {
+    // Your existing detectColor function
+}
+
+Scalar getColourCode(const string& colour) {
+    // Your existing getColourCode function
+}
+
+int main()
+{
+    // Connect with the owl and load calibration values
+    robotOwl owl(1500, 1475, 1520, 1525, 1520, true); // Starts in "quiet mode".
+
+    while (true) {
+        // Read the owl's camera frames
+        Mat left, right;
+        owl.getCameraFrames(left, right);
+
+        // Convert the BGR image to HSV
+        Mat leftHSV;
+        cvtColor(left, leftHSV, COLOR_BGR2HSV);
+
+        // Get pixel color values in BGR and HSV
+        Point centrePoint(left.size().width / 2, left.size().height / 2);
+        Vec3b pixelValueBGR = left.at<Vec3b>(centrePoint);
+        Vec3b pixelValueHSV = leftHSV.at<Vec3b>(centrePoint);
+
+        // Extract RGB components
+        unsigned char blue = pixelValueBGR[0];
+        unsigned char green = pixelValueBGR[1];
+        unsigned char red = pixelValueBGR[2];
+
+        // Convert HSV values to float for detection
+        float h = pixelValueHSV[0] * 2; // Scale hue to [0, 360]
+        float s = pixelValueHSV[1] / 255.0f;
+        float v = pixelValueHSV[2] / 255.0f;
+
+        // Detect color
+        string colour = detectColor(h, s, v);
+
+        // Get color code
+        Scalar colourCode = getColourCode(colour);
+
+        // Drawing functions
+        circle(left, centrePoint, 15, colourCode, 2); // Draw a circle to show the pixel being measured
+        string text_rgb = "RGB: (" + to_string(red) + ", " + to_string(green) + ", " + to_string(blue) + ")";
+        string text_hsv = "HSV: (" + to_string(static_cast<int>(h)) + ", " + to_string(s) + ", " + to_string(v) + ")";
+        string text_colour = "Color: " + colour;
+        putText(left, text_rgb, centrePoint + Point(-300, -20), FONT_HERSHEY_SIMPLEX, 0.7, Scalar(255,255,255), 2); // Draw the RGB string to the image
+        putText(left, text_hsv, centrePoint + Point(-300, 10), FONT_HERSHEY_SIMPLEX, 0.7, Scalar(255,255,255), 2); // Draw the HSV string to the image
+        putText(left, text_colour, centrePoint + Point(-300, 40), FONT_HERSHEY_SIMPLEX, 0.7, colourCode, 2); // Draw the detected color name with the corresponding color code
+
+        // Display image
+        imshow("left", left);
+        waitKey(30);
+    }
+}
