@@ -11,42 +11,8 @@
 using namespace std;
 using namespace cv;
 
-void RGBtoHSV(unsigned char r, unsigned char g, unsigned char b, float &h, float &s, float &v) {
-    // Convert RGB values to range [0, 1]
-    float red = r / 255.0;
-    float green = g / 255.0;
-    float blue = b / 255.0;
-
-    // Find maximum and minimum of RGB components
-    float cmax = max(red, max(green, blue));
-    float cmin = min(red, min(green, blue));
-    float delta = cmax - cmin;
-
-    // Calculate hue
-    if (delta == 0) {
-        h = 0;  // Undefined, set to 0
-    } else if (cmax == red) {
-        h = 60 * fmod((green - blue) / delta, 6);
-    } else if (cmax == green) {
-        h = 60 * ((blue - red) / delta + 2);
-    } else {
-        h = 60 * ((red - green) / delta + 4);
-    }
-
-    // Ensure hue is in the range [0, 360)
-    if (h < 0) {
-        h += 360;
-    }
-
-    // Calculate saturation
-    if (cmax == 0) {
-        s = 0;
-    } else {
-        s = delta / cmax;
-    }
-
-    // Value is the maximum of RGB components
-    v = cmax;
+void RGBtoHSV(const Mat& bgr, Mat& hsv) {
+    cvtColor(bgr, hsv, COLOR_BGR2HSV);
 }
 string detectColor(float h, float s, float v) {
     // Define thresholds for saturation and value
@@ -106,13 +72,18 @@ int main()
         //get pixel colour values
         Point centrePoint(left.size().width/2, left.size().height/2);
         Vec3b pixelValue = left.at<Vec3b>(centrePoint);
-        unsigned char red  = pixelValue[2];
-        unsigned char green = pixelValue[1];
-        unsigned char blue = pixelValue[0];
+        unsigned char r  = pixelValue[2];
+        unsigned char g = pixelValue[1];
+        unsigned char b = pixelValue[0];
+
+        float h = pixelValue[0];
+        float s = pixelValue[1] / 255.0;
+        float v = pixelValue[2] / 255.0;
+
 
         // Convert RGB to HSV
-        float h, s, v;
-        RGBtoHSV(red, green, blue, h, s, v);
+               Mat left_hsv;
+               RGBtoHSV(left, left_hsv);
 
         // Detect color
         string colour = detectColor(h, s, v);
@@ -122,7 +93,7 @@ int main()
 
         //drawing functions
         circle(left, centrePoint, 15, colourCode, 2); //draw a circle to show the pixel being measured
-        string text_rgb = "RGB: (" + to_string(red) + ", " + to_string(green) + ", " + to_string(blue) + ")";      //create a string of the RGB values
+        string text_rgb = "RGB: (" + to_string(r) + ", " + to_string(g) + ", " + to_string(b) + ")";      //create a string of the RGB values
         string text_hsv = "HSV: (" + to_string(h) + ", " + to_string(s) + ", " + to_string(v) + ")"; // create a string of the HSV values
         string text_colour = "" + colour; // create a string indicating the detected color
         putText(left, text_rgb, centrePoint + Point(-300, 200), FONT_HERSHEY_SIMPLEX, 0.7, Scalar(255,255,255), 2); //draw the RGB string to the image
@@ -134,7 +105,6 @@ int main()
         waitKey(30);
     }
 }
-
 
 
 
