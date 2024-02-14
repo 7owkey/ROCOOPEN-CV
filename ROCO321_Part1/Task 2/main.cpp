@@ -1,34 +1,25 @@
 //James Rogers Nov 2023 (c) Plymouth University
 
 #include <iostream>
-#include <fstream>
-#include <sys/types.h>
-#include <iostream>
-#include <string>
-
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include "../owl.h"
 
 using namespace std;
 using namespace cv;
 
-int main()
-{
-    // Connect with the owl and load calibration values
-    robotOwl owl(1500, 1475, 1520, 1525, 1520);
+int main() {
+    robotOwl owl(1500, 1475, 1520, 1525, 1520); // Initialize with calibration values
 
-    // Create windows to display the camera frame and the color target
     namedWindow("left");
     namedWindow("Color Target");
 
-    // Tracking start values - set to track green card
-    int HueLower = 34;
-    int SatLower = 42;
-    int ValLower = 100;
-    int HueUpper = 077; // Maximum value for Hue
-    int SatUpper = 200; // Maximum value for Saturation
-    int ValUpper = 185; // Maximum value for Value
+    // HSV range for tracking
+    int HueLower = 96, SatLower = 199, ValLower = 70;
+    int HueUpper = 114, SatUpper = 255, ValUpper = 206;
 
-    // Create trackbars to adjust the HSV range
+    // Create trackbars for HSV range adjustment
     createTrackbar("Hue Lower", "left", &HueLower, 179);
     createTrackbar("Sat Lower", "left", &SatLower, 255);
     createTrackbar("Val Lower", "left", &ValLower, 255);
@@ -36,47 +27,52 @@ int main()
     createTrackbar("Sat Upper", "left", &SatUpper, 255);
     createTrackbar("Val Upper", "left", &ValUpper, 255);
 
-    while (true)
-    {
-        // Read the owl's camera frames
+
+    bool trackingEnabled = false;
+
+    while (true) {
         Mat left, right;
         owl.getCameraFrames(left, right);
 
-        // Convert the frame from BGR to HSV
+
         Mat left_hsv;
         cvtColor(left, left_hsv, COLOR_BGR2HSV);
 
-        // Apply threshold to isolate pixels of color target
         Mat frame_filtered;
-        // Threshold the HSV frame based on the trackbar values
         inRange(left_hsv, Scalar(HueLower, SatLower, ValLower), Scalar(HueUpper, SatUpper, ValUpper), frame_filtered);
 
-        // Find the moments of the thresholded frame
         Moments m = moments(frame_filtered, true);
-
-        // Calculate the center of mass
+        Point center(left.cols / 2, left.rows / 2);
         Point p;
-        if (m.m00 != 0)
+
+ if (trackingEnabled) {
+        if (m.m00 >= 0.2) //added to stop m.m00 = 0 issues
         {
-            p = Point(m.m10 / m.m00, m.m01 / m.m00);
-            // Draw a marker on the original frame to show tracking
+            p = Point(m.m10/m.m00, m.m01/m.m00);
             circle(left, p, 5, Scalar(0, 0, 255), -1);
+
+            int errorX = p.x - center.x;
+            int errorY = p.y - center.y;
+
+            // Calculate proportional adjustments for head and eyes together
+            int adjustmentX = errorX * 0.125; // Adjust these multipliers as needed
+            int adjustmentY = -errorY * 0.075;
+
+            // Apply combined adjustments to both head and eyes
+            owl.setServoRelativePositions(adjustmentX, adjustmentY, adjustmentX, adjustmentY, adjustmentX);
         }
-
-        // Display the camera frame
+}
         imshow("left", left);
-
-        // Display the color target (highlighted pixels)
         imshow("Color Target", frame_filtered);
 
-        // Check for key press to exit the loop
-        if (waitKey(10) == 27) // ESC key
-            break;
-    }
+        int key = waitKey(30); // Wait for a key press for 30 ms
+               if (key == 27) // ESC key to exit
+                   break;
+               if (key == 's')
+                   trackingEnabled = !trackingEnabled; // Toggle the tracking state
+           }
 
-    // Close all windows
     destroyAllWindows();
-
     return 0;
 }
 
